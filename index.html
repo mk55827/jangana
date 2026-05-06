@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jangana Data Entry - Responsive</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    
+    <style>
+        /* Base Styles */
+        body { 
+            font-family: 'Segoe UI', Tahoma, sans-serif; 
+            background-color: #f4f7f6; 
+            margin: 0; 
+            padding: 10px; 
+            color: #333;
+        }
+
+        .container { 
+            max-width: 1000px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 15px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        }
+
+        h2 { 
+            text-align: center; 
+            color: #2c3e50; 
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        /* Responsive Grid Logic */
+        .grid-row { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 15px; 
+            margin-bottom: 15px; 
+        }
+
+        @media (max-width: 600px) {
+            .grid-row { grid-template-columns: 1fr; }
+            .family-grid { grid-template-columns: 1fr !important; }
+        }
+
+        .form-group { margin-bottom: 10px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.9rem; }
+        
+        input, select { 
+            width: 100%; 
+            padding: 12px; 
+            border: 1px solid #ccc; 
+            border-radius: 8px; 
+            box-sizing: border-box; 
+            font-size: 16px; /* Prevents auto-zoom on iOS */
+        }
+
+        /* Family Box Styling */
+        .family-box { 
+            background: #f9f9f9; 
+            border-left: 4px solid #3498db; 
+            padding: 15px; 
+            margin-top: 15px; 
+            border-radius: 0 8px 8px 0; 
+        }
+
+        .family-grid { 
+            display: grid; 
+            grid-template-columns: 1.5fr 1fr 1.2fr; 
+            gap: 10px; 
+        }
+
+        /* Buttons */
+        .btn-container { 
+            display: flex; 
+            gap: 10px; 
+            margin: 20px 0; 
+        }
+
+        button { 
+            flex: 1; 
+            padding: 15px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 1rem; 
+            transition: 0.3s;
+        }
+
+        .save-btn { background: #27ae60; color: white; }
+        .pdf-btn { background: #e74c3c; color: white; }
+        button:active { transform: scale(0.98); }
+
+        /* Table Styling (Responsive Scroll) */
+        .table-wrapper { 
+            overflow-x: auto; 
+            margin-top: 20px; 
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            min-width: 600px; /* Forces scroll on small screens */
+        }
+
+        th, td { 
+            padding: 12px; 
+            text-align: center; 
+            border-bottom: 1px solid #eee; 
+            font-size: 0.9rem;
+        }
+
+        th { background: #2c3e50; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>जनगणना रजिस्टर (Digital Census)</h2>
+    
+    <div class="grid-row">
+        <div class="form-group">
+            <label>भवन संख्या (Bhavan No.):</label>
+            <input type="number" id="bhavanNo" placeholder="Ex: 10">
+        </div>
+        <div class="form-group">
+            <label>कितने परिवार हैं?</label>
+            <select id="familyCount" onchange="createFamilyForms()">
+                <option value="1">1 परिवार</option>
+                <option value="2">2 परिवार</option>
+                <option value="3">3 परिवार</option>
+                <option value="4">4 परिवार</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="dynamicFamilies"></div>
+
+    <div class="btn-container">
+        <button class="save-btn" onclick="processData()">डेटा सेव करें</button>
+        <button class="pdf-btn" onclick="generatePDF()">PDF डाउनलोड</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th>क्रम.</th>
+                    <th>भवन</th>
+                    <th>मकान</th>
+                    <th>मुखिया</th>
+                    <th>सदस्य</th>
+                    <th>मोबाइल</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let allData = [];
+    let currentKram = 1;
+    let nextMakanNo = 1;
+
+    window.onload = createFamilyForms;
+
+    function createFamilyForms() {
+        const count = document.getElementById('familyCount').value;
+        const container = document.getElementById('dynamicFamilies');
+        container.innerHTML = '';
+
+        for (let i = 1; i <= count; i++) {
+            container.innerHTML += `
+                <div class="family-box">
+                    <label style="color:#2980b9">परिवार #${i} का विवरण:</label>
+                    <div class="family-grid">
+                        <input type="text" class="mName" placeholder="मुखिया का नाम">
+                        <input type="number" class="sCount" placeholder="सदस्य">
+                        <input type="tel" class="mobNo" placeholder="मोबाइल">
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    function processData() {
+        const bNo = document.getElementById('bhavanNo').value;
+        const fCount = parseInt(document.getElementById('familyCount').value);
+        const names = document.getElementsByClassName('mName');
+        const counts = document.getElementsByClassName('sCount');
+        const mobiles = document.getElementsByClassName('mobNo');
+
+        if (!bNo) { alert("भवन संख्या डालना अनिवार्य है!"); return; }
+
+        for (let i = 0; i < fCount; i++) {
+            if (!names[i].value) continue;
+
+            let formattedMakanNo = nextMakanNo.toString().padStart(3, '0');
+
+            const entry = {
+                kram: currentKram++,
+                bhavan: bNo,
+                makan: formattedMakanNo,
+                mukhiya: names[i].value,
+                sadasya: counts[i].value || 0,
+                mobile: mobiles[i].value || '-'
+            };
+
+            allData.push(entry);
+            nextMakanNo++;
+            addRowToTable(entry);
+        }
+
+        // Reset and Focus back to Bhavan
+        document.getElementById('bhavanNo').value = '';
+        createFamilyForms();
+        document.getElementById('bhavanNo').focus();
+    }
+
+    function addRowToTable(item) {
+        const tbody = document.querySelector("#dataTable tbody");
+        const row = `<tr>
+            <td>${item.kram}</td>
+            <td>${item.bhavan}</td>
+            <td>${item.makan}</td>
+            <td>${item.mukhiya}</td>
+            <td>${item.sadasya}</td>
+            <td>${item.mobile}</td>
+        </tr>`;
+        tbody.innerHTML += row;
+    }
+
+    function generatePDF() {
+        if(allData.length === 0) { alert("कोई डेटा उपलब्ध नहीं है!"); return; }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+
+        doc.setFontSize(16);
+        doc.text("Census Data Report (Jangana)", 105, 15, null, null, "center");
+
+        const headers = [['S.No', 'Bhavan', 'Makan', 'Head Name', 'Members', 'Mobile']];
+        const rows = allData.map(d => [d.kram, d.bhavan, d.makan, d.mukhiya, d.sadasya, d.mobile]);
+
+        doc.autoTable({
+            head: headers,
+            body: rows,
+            startY: 25,
+            styles: { fontSize: 9, halign: 'center' },
+            headStyles: { fillColor: [44, 62, 80] }
+        });
+
+        doc.save("Jangana_Data.pdf");
+    }
+</script>
+
+</body>
+</html>
